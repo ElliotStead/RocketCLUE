@@ -29,42 +29,45 @@ class KalmanFilter:
         self.posteri_estimate = a_priori_estimate + kalman_gain * (measurement - a_priori_estimate)
 
         # Update the error estimate
-        self.posteri_error_estimate = (1 - kalman_gain) * self.posteri_error_estimate + abs(a_priori_estimate - self.posteri_estimate) * self.process_variance
+        self.posteri_error_estimate = (1 - kalman_gain) * self.posteri_error_estimate + self.process_variance
 
         return self.posteri_estimate
 
 kalman_filter = KalmanFilter(process_variance=0.1, measurement_variance=1.0, estimated_measurement_variance=1.0)
 
 display = clue.display
+mode = True  # True = Filtered, False = Unfiltered
 
-# Main loop
+# Create Display Elements
+text = displayio.Group(scale=2)
 
-mode = True
-
-text = displayio.Group()
-text.scale = 2
-data_text = label.Label(terminalio.FONT, text=" "*10)
+data_text = label.Label(terminalio.FONT, text="Height: ---", color=0xFFFFFF)
 data_text.anchor_point = (0.5, 0.5)
-data_text.anchored_position = (120/text.scale, 120/text.scale)
+data_text.anchored_position = (120 // 2, 120 // 2)
 text.append(data_text)
-title_text = label.Label(terminalio.FONT, text=" "*10)
+
+title_text = label.Label(terminalio.FONT, text="FILTERED", color=0xFFFFFF)
 title_text.anchor_point = (0.5, 0.5)
-title_text.anchored_position = (120/text.scale, 50/text.scale)
+title_text.anchored_position = (120 // 2, 50 // 2)
 text.append(title_text)
 
-while True:
+display.root_group = text
 
+while True:
     title_text.color = 0xFFFFFF
     if clue.button_a:
-        temp = not mode
-        mode = temp
+        mode = not mode
+        time.sleep(0.2)  # Debounce delay to prevent rapid toggling
+
     if clue.button_b:
         bmp280.sea_level_pressure = bmp280.pressure
         title_text.color = 0xFF0000
         print("RESET")
-    if clue.button_b and clue.button_a:
+        time.sleep(0.2)  # Debounce delay
+
+    if clue.button_a and clue.button_b:
         title_text.text = "CREATING FILE"
-        break
+        break  # Exit loop to start logging
 
     raw_height = bmp280.altitude
     print(f"Raw height: {raw_height:.3f} meters")
@@ -73,35 +76,39 @@ while True:
         filtered_height = kalman_filter.update(raw_height)
     else:
         filtered_height = raw_height
+
     print(f"Filtered height: {filtered_height:.3f} meters")
 
     data_text.text = f"Height: {filtered_height:.3f}m"
-
-    if mode:
-        title_text.text = "FILTERED"
-    else:
-        title_text.text = "UNFILTERED"
+    title_text.text = "FILTERED" if mode else "UNFILTERED"
 
     display.root_group = text
-
     time.sleep(0.1)
 
-print("loading")
-
+# Data Logging
+print("Starting data logging...")
 storage.remount("/", readonly=False)
-with open("/altitude.csv", "a") as fp:
-    fp.write("TIME,UNFILTERED,FILTERED\n")
-    initial_time = time.monotonic()
-    the_time = 0.0
-    while the_time < 10:
-        fp.write(f"{the_time}")
-        fp.write(",")
-        fp.write(f"{bmp280.altitude}")
-        fp.write(",")
-        fp.write(f"{kalman_filter.update(bmp280.altitude)}")
-        fp.write("\n")
-        time.sleep(0.1)
-        the_time = time.monotonic() - initial_time
-storage.remount("/", readonly=True)
-print("completed")
 
+file_path = "/altitude.csv"
+file_exists = False
+
+# Check if file already exists
+try:
+    with open(file_path, "r") as check_file:
+        file_exists = True
+except OSError:
+    pass  # File does not exist, will be created
+
+with open(file_path, "a") as fp:
+    if not file_exists:
+        fp.write("TIME,UNFILTERED,FILTERED\n")
+
+    initial_time = time.monotonic()
+    while (the_time := time.monotonic() - initial_time) < 10:
+        unfiltered = bmp280.altitude
+        filtered = kalman_filter.update(unfiltered)
+        fp.write(f"{the_time:.2f},{unfiltered:.3f},{filtered:.3f}\n")
+        time.sleep(0.1)
+
+storage.remount("/", readonly=True)
+print("Data logging completed.")
