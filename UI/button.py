@@ -4,7 +4,7 @@ from adafruit_display_text import label
 import vectorio
 
 class Button:
-    def __init__(self, text, x, y, width=100, height=30, border=5, normal_color=0x444444, text_color=0xFF0000, pressed_normal_color=0x222222, pressed_text_color=0xFFF000, highlight_color=0xFFFFFF):
+    def __init__(self, text, x, y, width=100, height=30, border=5, normal_color=0x444444, text_color=0xFF0000, highlight_color=0xFFFFFF):
         self.text = text
         self.x = x
         self.y = y
@@ -13,6 +13,7 @@ class Button:
         self.selected = False  # Highlight state
         self.pressed = False  # Pressed state
         self.border = border
+        self.pressed_color_scale = 0.7
 
         self.border_rect = vectorio.Rectangle(
             pixel_shader=displayio.Palette(1),
@@ -33,22 +34,34 @@ class Button:
         self.normal_color = normal_color
         self.text_color = text_color
         self.highlight_color = highlight_color
-        self.pressed_normal_color = pressed_normal_color
-        self.pressed_text_color = pressed_text_color
+        
+        r = (highlight_color >> 16) & 0xFF  # Extract red
+        g = (highlight_color >> 8) & 0xFF   # Extract green
+        b = highlight_color & 0xFF 
+        r = int(r * self.pressed_color_scale)
+        g = int(g * self.pressed_color_scale)
+        b = int(b * self.pressed_color_scale)
+        self.pressed_normal_color = int(hex((r << 16) | (g << 8) | b))
+        
+        r = (text_color >> 16) & 0xFF  # Extract red
+        g = (text_color >> 8) & 0xFF   # Extract green
+        b = text_color & 0xFF 
+        r = int(r * self.pressed_color_scale)
+        g = int(g * self.pressed_color_scale)
+        b = int(b * self.pressed_color_scale)
+        self.pressed_text_color = int(hex((r << 16) | (g << 8) | b))
         
         # Set initial color
         self.border_rect.pixel_shader[0] = self.text_color
         self.button_rect.pixel_shader[0] = self.normal_color
-
+        
         # Create the text label
         self.label = label.Label(terminalio.FONT, text=self.text, color=self.text_color)
-        self.label.x = self.x + 10
-        self.label.y = self.y + 10
-        '''
-        text_area.anchor_point = (0.5, 0.5)
-        text_area.anchored_position = (int(self.x + self.width/2), 
+        
+        self.label.anchor_point = (0.5, 0.5)
+        self.label.anchored_position = (int(self.x + self.width/2), 
         int(self.y + self.height/2))
-        '''
+        
 
     def set_pressed(self, state):
         self.pressed = state
