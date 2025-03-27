@@ -1,18 +1,19 @@
 import board
 import displayio
 import digitalio
-import time
 from button import Button  # Import the Button class
+from page import Page
+import time
 
-# Use built-in display
 display = board.DISPLAY
-display.auto_refresh = True  # Let display handle updates automatically
+display.auto_refresh = True
 
-# Load bitmap background
 bitmap = displayio.OnDiskBitmap(open("/background.bmp", "rb"))  # Ensure file is on CIRCUITPY
 tile_grid = displayio.TileGrid(bitmap, pixel_shader=bitmap.pixel_shader)
 
-# Buttons on the Clue
+display_group = displayio.Group()
+display_group.append(tile_grid)
+
 button_a = digitalio.DigitalInOut(board.BUTTON_A)
 button_a.direction = digitalio.Direction.INPUT
 button_a.pull = digitalio.Pull.UP
@@ -21,53 +22,35 @@ button_b = digitalio.DigitalInOut(board.BUTTON_B)
 button_b.direction = digitalio.Direction.INPUT
 button_b.pull = digitalio.Pull.UP
 
-# Create UI buttons
-buttons = [
-    Button("Start", 14, 20),
-    Button("Settings", 14, 60)
-]
+# Define the callback function
+def print_something():
+    print('Button pressed!')
 
-# UI State
-current_selection = 0  # Index of the currently selected button
+# Create buttons
+button1 = Button("Start", 14, 20, normal_color=0xfa3eac, text_color=0x57fa3e, callback=print_something)
+button2 = Button("Settings", 14, 60, normal_color=0x5590ED)
+button3 = Button("Stop", 14, 100, normal_color=0x5590ED)
 
-# Create display group
-display_group = displayio.Group()
+# Add buttons to a page (example page handling)
+main_page = Page("Main Menu", [button1, button2, button3])
+print('here')
+# The main loop where button interaction happens
 
-# Add the background bitmap once (never redraw it)
-display_group.append(tile_grid)
+display_group.append(button1.create_display_group())
+display_group.append(button2.create_display_group())
+display_group.append(button3.create_display_group())
 
-# Add buttons to the display group
-for button in buttons:
-    display_group.append(button.create_display_group())
-
-# Show everything on screen
 display.root_group = display_group
 
-# Function to update UI **without refreshing the whole screen**
-def draw_ui():
-    """Only updates button colors without redrawing the whole screen."""
-    for i, button in enumerate(buttons):
-        button.set_selected(i == current_selection)  # Highlight selected button
-        button.update_color()  # Change only colors (no full refresh)
-
-# Show initial UI
-draw_ui()
-
-# Main loop
 while True:
+    main_page.draw()  # Update button selection and colors
+
     if not button_a.value:  # Button A pressed (navigate)
-        current_selection = (current_selection + 1) % len(buttons)
-        draw_ui()
-        while not button_a.value:  # Wait for release
-            pass  
+        main_page.select_button((main_page.current_selection + 1) % len(main_page.buttons))
+        time.sleep(0.1)  # Short delay to avoid bouncing
 
     if not button_b.value:  # Button B pressed (select)
-        buttons[current_selection].set_pressed(True)  # Show pressed effect
-        draw_ui()
-        time.sleep(0.2)  # Short delay (200ms)
-        buttons[current_selection].set_pressed(False)  # Reset after delay
-        draw_ui()
-        print(f"Selected: {buttons[current_selection].text}")
+        main_page.handle_button_press()  # Call the selected button's callback
+        time.sleep(0.1)  # Short delay to avoid bouncing
 
-        while not button_b.value:  # Wait for release
-            pass
+    time.sleep(0.05)  # Small delay to reduce CPU usage
