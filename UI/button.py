@@ -48,11 +48,25 @@ class Button:
             g = 255
         if(b > 255):
             b = 255
-        self.highlight_color = int(hex((r << 16) | (g << 8) | b))
+        self.highlight_normal_color = int(hex((r << 16) | (g << 8) | b))
+        
+        r = (text_color >> 16) & 0xFF  # Extract red
+        g = (text_color >> 8) & 0xFF   # Extract green
+        b = text_color & 0xFF
+        r = int(r * self.highlighted_color_scale)
+        g = int(g * self.highlighted_color_scale)
+        b = int(b * self.highlighted_color_scale)
+        if(r > 255):
+            r = 255
+        if(g > 255):
+            g = 255
+        if(b > 255):
+            b = 255
+        self.highlight_text_color = int(hex((r << 16) | (g << 8) | b))
 
-        r = (self.highlight_color >> 16) & 0xFF  # Extract red
-        g = (self.highlight_color >> 8) & 0xFF   # Extract green
-        b = self.highlight_color & 0xFF
+        r = (self.highlight_normal_color >> 16) & 0xFF  # Extract red
+        g = (self.highlight_normal_color >> 8) & 0xFF   # Extract green
+        b = self.highlight_normal_color & 0xFF
         r = int(r * self.pressed_color_scale)
         g = int(g * self.pressed_color_scale)
         b = int(b * self.pressed_color_scale)
@@ -94,9 +108,9 @@ class Button:
             self.button_rect.pixel_shader[0] = self.pressed_normal_color
             self.label.color = self.pressed_text_color  # Text color when pressed
         elif self.selected:
-            self.border_rect.pixel_shader[0] = self.text_color
-            self.button_rect.pixel_shader[0] = self.highlight_color
-            self.label.color = self.text_color  # Dark text when selected
+            self.border_rect.pixel_shader[0] = self.highlight_text_color
+            self.button_rect.pixel_shader[0] = self.highlight_normal_color
+            self.label.color = self.highlight_text_color  # Dark text when selected
         else:
             self.border_rect.pixel_shader[0] = self.text_color
             self.button_rect.pixel_shader[0] = self.normal_color
