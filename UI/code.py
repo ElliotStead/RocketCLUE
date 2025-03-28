@@ -1,7 +1,7 @@
 import board
 import displayio
 import digitalio
-from button import Button  # Import the Button class
+from button import Button
 from page import Page
 import time
 
@@ -26,31 +26,49 @@ button_b.pull = digitalio.Pull.UP
 def print_something():
     print('Button pressed!')
 
-# Create buttons
-button1 = Button("Start", 14, 20, normal_color=0xfa3eac, text_color=0x57fa3e, callback=print_something)
+# Create buttons for each page
+button1 = Button("Start", 14, 20, normal_color=0x5590ED, callback=print_something)
 button2 = Button("Settings", 14, 60, normal_color=0x5590ED)
 button3 = Button("Stop", 14, 100, normal_color=0x5590ED)
 
-# Add buttons to a page (example page handling)
-main_page = Page("Main Menu", [button1, button2, button3])
-print('here')
-# The main loop where button interaction happens
+button4 = Button("Info", 14, 20, normal_color=0x5590ED)
+button5 = Button("Back", 14, 60, normal_color=0x5590ED)
 
-display_group.append(button1.create_display_group())
-display_group.append(button2.create_display_group())
-display_group.append(button3.create_display_group())
+button6 = Button("Back", 14, 20, normal_color=0x5590ED)
+
+# Create pages
+main_page = Page("Main Menu", [button1, button2, button3])
+info_page = Page("Info", [button4, button5])
+other_page = Page("stuff", [button6])
+
+
+pages = [main_page, info_page, other_page]
+current_page_index = 0
 
 display.root_group = display_group
+display.root_group.append(pages[current_page_index].get_display_group())
 
 while True:
-    main_page.draw()  # Update button selection and colors
+    pages[current_page_index].draw()  # Update button selection and colors
 
-    if not button_a.value:  # Button A pressed (navigate)
-        main_page.select_button((main_page.current_selection + 1) % len(main_page.buttons))
-        time.sleep(0.1)  # Short delay to avoid bouncing
+    if not button_a.value and not button_b.value:  # Both buttons pressed -> switch page
+        while (len(display.root_group) > 1):
+            display.root_group.pop()
+        current_page_index = (current_page_index + 1) % len(pages)
+        display.root_group.append(pages[current_page_index].get_display_group())
+        for i in display.root_group:
+            print(i)
 
-    if not button_b.value:  # Button B pressed (select)
-        main_page.handle_button_press()  # Call the selected button's callback
-        time.sleep(0.1)  # Short delay to avoid bouncing
+
+
+    elif not button_a.value:  # Button A pressed -> navigate buttons
+        pages[current_page_index].select_button(
+            (pages[current_page_index].current_selection + 1) % len(pages[current_page_index].buttons)
+        )
+        time.sleep(0.1)  # Prevent bouncing
+
+    elif not button_b.value:  # Button B pressed -> select button
+        pages[current_page_index].handle_button_press()
+        time.sleep(0.1)  # Prevent bouncing
 
     time.sleep(0.05)  # Small delay to reduce CPU usage
