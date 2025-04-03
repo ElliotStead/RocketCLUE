@@ -4,7 +4,7 @@ from adafruit_display_text import label
 import vectorio
 
 class Button:
-    def __init__(self, text, x, y, width=100, height=30, border=5, normal_color=0x444444, text_color=0xFF0000, callback=None):
+    def __init__(self, text, x, y, width=100, height=50, border=10, normal_color=0x444444, text_color=0xFF0000, font=terminalio.FONT, callback=None):
         self.text = text
         self.x = x
         self.y = y
@@ -16,6 +16,7 @@ class Button:
         self.pressed_color_scale = 0.7
         self.highlighted_color_scale = 1.5
         self.callback = callback
+        self.font = font
 
         self.border_rect = vectorio.Rectangle(
             pixel_shader=displayio.Palette(1),
@@ -49,7 +50,7 @@ class Button:
         if(b > 255):
             b = 255
         self.highlight_normal_color = int(hex((r << 16) | (g << 8) | b))
-        
+
         r = (text_color >> 16) & 0xFF  # Extract red
         g = (text_color >> 8) & 0xFF   # Extract green
         b = text_color & 0xFF
@@ -85,7 +86,7 @@ class Button:
         self.button_rect.pixel_shader[0] = self.normal_color
 
         # Create the text label
-        self.label = label.Label(terminalio.FONT, text=self.text, color=self.text_color)
+        self.label = label.Label(self.font, text=self.text, color=self.text_color)
 
         self.label.anchor_point = (0.5, 0.5)
         self.label.anchored_position = (int(self.x + self.width/2),
@@ -95,8 +96,7 @@ class Button:
     def set_pressed(self, state):
         self.pressed = state
         self.update_color()
-        if self.pressed and self.callback:
-            self.callback()
+        # Removed callback execution from here
 
     def set_selected(self, state):
         self.selected = state
