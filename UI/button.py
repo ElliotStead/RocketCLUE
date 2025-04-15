@@ -1,124 +1,199 @@
 import displayio
-import terminalio
-from adafruit_display_text import label
 import vectorio
+from adafruit_display_text import label
 
 class Button:
-    def __init__(self, text, x, y, width=100, height=50, border=10, normal_color=0x444444, text_color=0xFF0000, font=terminalio.FONT, callback=None):
-        self.text = text
+    def __init__(self, text, x, y, width=50, height=100, callback=None,
+                 normal_color=0x444444, text_color=0xFFFFFF,
+                 border=10, font=None):
         self.x = x
         self.y = y
         self.width = width
         self.height = height
-        self.selected = False  # Highlight state
-        self.pressed = False  # Pressed state
-        self.border = border
-        self.pressed_color_scale = 0.7
-        self.highlighted_color_scale = 1.5
+        self.text = text
         self.callback = callback
+        self.border = border
         self.font = font
-
-        self.border_rect = vectorio.Rectangle(
-            pixel_shader=displayio.Palette(1),
-            width=self.width,
-            height=self.height,
-            x=self.x,
-            y=self.y,
-        )
-        self.button_rect = vectorio.Rectangle(
-            pixel_shader=displayio.Palette(1),
-            width=self.width-self.border,
-            height=self.height-self.border,
-            x=int(self.x+self.border/2),
-            y=int(self.y+self.border/2),
-        )
-
-        # Set default colors
+        
+        # Store colors directly
         self.normal_color = normal_color
         self.text_color = text_color
-
-        r = (normal_color >> 16) & 0xFF  # Extract red
-        g = (normal_color >> 8) & 0xFF   # Extract green
-        b = normal_color & 0xFF
-        r = int(r * self.highlighted_color_scale)
-        g = int(g * self.highlighted_color_scale)
-        b = int(b * self.highlighted_color_scale)
-        if(r > 255):
-            r = 255
-        if(g > 255):
-            g = 255
-        if(b > 255):
-            b = 255
-        self.highlight_normal_color = int(hex((r << 16) | (g << 8) | b))
-
-        r = (text_color >> 16) & 0xFF  # Extract red
-        g = (text_color >> 8) & 0xFF   # Extract green
-        b = text_color & 0xFF
-        r = int(r * self.highlighted_color_scale)
-        g = int(g * self.highlighted_color_scale)
-        b = int(b * self.highlighted_color_scale)
-        if(r > 255):
-            r = 255
-        if(g > 255):
-            g = 255
-        if(b > 255):
-            b = 255
-        self.highlight_text_color = int(hex((r << 16) | (g << 8) | b))
-
-        r = (self.highlight_normal_color >> 16) & 0xFF  # Extract red
-        g = (self.highlight_normal_color >> 8) & 0xFF   # Extract green
-        b = self.highlight_normal_color & 0xFF
-        r = int(r * self.pressed_color_scale)
-        g = int(g * self.pressed_color_scale)
-        b = int(b * self.pressed_color_scale)
-        self.pressed_normal_color = int(hex((r << 16) | (g << 8) | b))
-
-        r = (text_color >> 16) & 0xFF  # Extract red
-        g = (text_color >> 8) & 0xFF   # Extract green
-        b = text_color & 0xFF
-        r = int(r * self.pressed_color_scale)
-        g = int(g * self.pressed_color_scale)
-        b = int(b * self.pressed_color_scale)
-        self.pressed_text_color = int(hex((r << 16) | (g << 8) | b))
-
-        # Set initial color
-        self.border_rect.pixel_shader[0] = self.text_color
-        self.button_rect.pixel_shader[0] = self.normal_color
-
-        # Create the text label
-        self.label = label.Label(self.font, text=self.text, color=self.text_color)
-
-        self.label.anchor_point = (0.5, 0.5)
-        self.label.anchored_position = (int(self.x + self.width/2),
-        int(self.y + self.height/2))
-
-
-    def set_pressed(self, state):
-        self.pressed = state
-        self.update_color()
-        # Removed callback execution from here
-
-    def set_selected(self, state):
-        self.selected = state
-        self.update_color()
-
-    def update_color(self):
-        if self.pressed:
-            self.border_rect.pixel_shader[0] = self.pressed_text_color
-            self.button_rect.pixel_shader[0] = self.pressed_normal_color
-            self.label.color = self.pressed_text_color  # Text color when pressed
-        elif self.selected:
-            self.border_rect.pixel_shader[0] = self.highlight_text_color
-            self.button_rect.pixel_shader[0] = self.highlight_normal_color
-            self.label.color = self.highlight_text_color  # Dark text when selected
-        else:
-            self.border_rect.pixel_shader[0] = self.text_color
-            self.button_rect.pixel_shader[0] = self.normal_color
-            self.label.color = self.text_color  # Normal white text
-
+        self.selected_color = self._scale_color(normal_color, 1.5)
+        self.pressed_color = self._scale_color(normal_color, 0.7)
+        
+        self.is_selected = False
+        self.is_pressed = False
+        self.display_group = None
+        
+    def _scale_color(self, color, scale):
+        r = min(255, int(((color >> 16) & 0xFF) * scale))
+        g = min(255, int(((color >> 8) & 0xFF) * scale))
+        b = min(255, int((color & 0xFF) * scale))
+        return (r << 16) | (g << 8) | b
+        
     def create_display_group(self):
-        group = displayio.Group()
-        group.append(self.border_rect)
-        group.append(self.button_rect)
-        group.append(self.label)
-        return group
+        if self.display_group is not None:
+            return self.display_group
+            
+        self.display_group = displayio.Group(x=self.x, y=self.y)
+        
+        # Create a single bitmap for the button background
+        bg_bitmap = displayio.Bitmap(self.width, self.height, 3)
+        bg_palette = displayio.Palette(3)
+        
+        # Set palette colors
+        bg_palette[0] = self.normal_color     # Inner fill
+        bg_palette[1] = self.text_color       # Border
+        bg_palette[2] = 0x000000              # Transparent (unused)
+        
+        # Fill the bitmap
+        for x in range(self.width):
+            for y in range(self.height):
+                # Simple border without dithering
+                if (x < self.border//2 or x >= self.width - self.border//2 or 
+                    y < self.border//2 or y >= self.height - self.border//2):
+                    bg_bitmap[x, y] = 1  # Border
+                else:
+                    bg_bitmap[x, y] = 0  # Inner area
+        
+        # Create the tilegrid from the bitmap
+        self.bg_grid = displayio.TileGrid(bg_bitmap, pixel_shader=bg_palette)
+        self.bg_palette = bg_palette  # Store reference to palette
+        self.display_group.append(self.bg_grid)
+        
+        # Create the text label
+        self.label = label.Label(
+            self.font,
+            text=self.text,
+            color=self.text_color,
+            anchor_point=(0.5, 0.5),
+            anchored_position=(self.width // 2, self.height // 2)
+        )
+        self.display_group.append(self.label)
+        
+        return self.display_group
+        
+    def set_selected(self, selected):
+        if self.is_selected != selected:
+            self.is_selected = selected
+            self._update_appearance()
+            return True
+        return False
+        
+    def set_pressed(self, pressed):
+        if self.is_pressed != pressed:
+            self.is_pressed = pressed
+            self._update_appearance()
+            return True
+        return False
+        
+    def _update_appearance(self):
+        if not hasattr(self, 'bg_palette'):
+            return  # Display group hasn't been created yet
+            
+        # Update colors based on state
+        if self.is_pressed:
+            self.bg_palette[0] = self.pressed_color
+        elif self.is_selected:
+            self.bg_palette[0] = self.selected_color
+        else:
+            self.bg_palette[0] = self.normal_colorimport displayio
+import vectorio
+from adafruit_display_text import label
+
+class Button:
+    def __init__(self, text, x, y, width=50, height=100, callback=None,
+                 normal_color=0x444444, text_color=0xFFFFFF,
+                 border=10, font=None):
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.text = text
+        self.callback = callback
+        self.border = border
+        self.font = font
+        
+        # Store colors directly
+        self.normal_color = normal_color
+        self.text_color = text_color
+        self.selected_color = self._scale_color(normal_color, 1.5)
+        self.pressed_color = self._scale_color(normal_color, 0.7)
+        
+        self.is_selected = False
+        self.is_pressed = False
+        self.display_group = None
+        
+    def _scale_color(self, color, scale):
+        r = min(255, int(((color >> 16) & 0xFF) * scale))
+        g = min(255, int(((color >> 8) & 0xFF) * scale))
+        b = min(255, int((color & 0xFF) * scale))
+        return (r << 16) | (g << 8) | b
+        
+    def create_display_group(self):
+        if self.display_group is not None:
+            return self.display_group
+            
+        self.display_group = displayio.Group(x=self.x, y=self.y)
+        
+        # Create a single bitmap for the button background
+        bg_bitmap = displayio.Bitmap(self.width, self.height, 3)
+        bg_palette = displayio.Palette(3)
+        
+        # Set palette colors
+        bg_palette[0] = self.normal_color     # Inner fill
+        bg_palette[1] = self.text_color       # Border
+        bg_palette[2] = 0x000000              # Transparent (unused)
+        
+        # Fill the bitmap
+        for x in range(self.width):
+            for y in range(self.height):
+                # Simple border without dithering
+                if (x < self.border//2 or x >= self.width - self.border//2 or 
+                    y < self.border//2 or y >= self.height - self.border//2):
+                    bg_bitmap[x, y] = 1  # Border
+                else:
+                    bg_bitmap[x, y] = 0  # Inner area
+        
+        # Create the tilegrid from the bitmap
+        self.bg_grid = displayio.TileGrid(bg_bitmap, pixel_shader=bg_palette)
+        self.bg_palette = bg_palette  # Store reference to palette
+        self.display_group.append(self.bg_grid)
+        
+        # Create the text label
+        self.label = label.Label(
+            self.font,
+            text=self.text,
+            color=self.text_color,
+            anchor_point=(0.5, 0.5),
+            anchored_position=(self.width // 2, self.height // 2)
+        )
+        self.display_group.append(self.label)
+        
+        return self.display_group
+        
+    def set_selected(self, selected):
+        if self.is_selected != selected:
+            self.is_selected = selected
+            self._update_appearance()
+            return True
+        return False
+        
+    def set_pressed(self, pressed):
+        if self.is_pressed != pressed:
+            self.is_pressed = pressed
+            self._update_appearance()
+            return True
+        return False
+        
+    def _update_appearance(self):
+        if not hasattr(self, 'bg_palette'):
+            return  # Display group hasn't been created yet
+            
+        # Update colors based on state
+        if self.is_pressed:
+            self.bg_palette[0] = self.pressed_color
+        elif self.is_selected:
+            self.bg_palette[0] = self.selected_color
+        else:
+            self.bg_palette[0] = self.normal_color
